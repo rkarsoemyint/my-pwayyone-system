@@ -1,53 +1,55 @@
-require('dotenv').config(); // အပေါ်ဆုံးမှာ ထည့်သွင်းထားသည်
+require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const bodyParser = require('body-parser');
-const sqlite3 = require('sqlite3');
-const { open } = require('sqlite');
+const { Pool } = require('pg'); 
 const cors = require('cors');
 
 const app = express();
 
-// --- MIDDLEWARE ပြင်ဆင်ခြင်း ---
-app.use(cors()); // Frontend ကနေ လှမ်းခေါ်တာကို ခွင့်ပြုခြင်း
-app.use(express.json()); // Frontend က JSON Data ဖတ်နိုင်ရန်
+// --- MIDDLEWARE ---
+app.use(cors());
+app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
-// Database ချိတ်ဆက်ခြင်း
-let db;
+// --- POSTGRESQL CONNECTION ---
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL || 'postgresql://pwayyone_user:yCvvO08kQEKLhFmruN517X1n20z83Hcr@dpg-d7cap3osfn5c73ccadh0-a.singapore-postgres.render.com/pwayyone',
+    ssl: { rejectUnauthorized: false }
+});
+
+// Table ဆောက်ခြင်း
 (async () => {
-    db = await open({
-        filename: './database.db',
-        driver: sqlite3.Database
-    });
-    await db.exec(`CREATE TABLE IF NOT EXISTS records (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        date TEXT,
-        farmer_name TEXT,
-        item_name TEXT,
-        item_type TEXT,
-        truck_no TEXT,
-        weight REAL,
-        price REAL,
-        broker_fee REAL,
-        truck_fee REAL,
-        total_clearance REAL
-    )`);
+    try {
+        await pool.query(`CREATE TABLE IF NOT EXISTS records (
+            id SERIAL PRIMARY KEY,
+            date TEXT,
+            farmer_name TEXT,
+            item_name TEXT,
+            item_type TEXT,
+            truck_no TEXT,
+            weight REAL,
+            price REAL,
+            broker_fee REAL,
+            truck_fee REAL,
+            total_clearance REAL
+        )`);
+    } catch (err) {
+        console.error("Database connection error:", err);
+    }
 })();
 
 app.set('view engine', 'ejs');
 
-// Session Config (Secret ကို .env မှယူသည်)
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'fallback_secret_key',
+    secret: process.env.SESSION_SECRET || 'fallback_secret',
     resave: false,
     saveUninitialized: true
 }));
 
-// Admin Credential များ (.env မှယူသည်)
 const ADMIN_USER = process.env.ADMIN_USER || "admin";
-const ADMIN_PASS = process.env.ADMIN_PASS || "123456"; 
+const ADMIN_PASS = process.env.ADMIN_PASS || "123456";
 
 function checkAuth(req, res, next) {
     if (req.session.loggedIn) return next();
@@ -57,10 +59,9 @@ function checkAuth(req, res, next) {
 // --- API FOR FRONTEND VOUCHER ---
 app.post('/post', async (req, res) => {
     try {
-        const { date, items } = req.body; 
-
+        const { date, items } = req.body;
         for (const item of items) {
-            if (!item.name && !item.qty) continue; 
+            if (!item.name && !item.qty) continue;
 
             const weight = parseFloat(item.qty) || 0;
             const price = parseFloat(item.price) || 0;
@@ -68,26 +69,21 @@ app.post('/post', async (req, res) => {
             const truck_fee = parseFloat(item.charge) || 0;
             const total_clearance = (weight * price) - broker_fee - truck_fee;
 
-            await db.run(`INSERT INTO records 
+            await pool.query(`INSERT INTO records 
                 (date, farmer_name, item_name, item_type, truck_no, weight, price, broker_fee, truck_fee, total_clearance) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                    date || new Date().toISOString().split('T')[0], 
-                    item.name, item.type, item.spec, item.car, 
-                    weight, price, broker_fee, truck_fee, total_clearance
-                ]
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+                [date || new Date().toISOString().split('T')[0], item.name, item.type, item.spec, item.car, weight, price, broker_fee, truck_fee, total_clearance]
             );
         }
-        res.json({ success: true, message: "Voucher သိမ်းဆည်းပြီးပါပြီ" });
+        res.json({ success: true, message: "သိမ်းဆည်းပြီးပါပြီ" });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ success: false, message: "Server error ဖြစ်သွားပါသည်" });
+        res.status(500).json({ success: false });
     }
 });
 
 // --- AUTH ROUTES ---
 app.get('/login', (req, res) => res.render('login'));
-
 app.post('/login', (req, res) => {
     const { username, password } = req.body;
     if (username === ADMIN_USER && password === ADMIN_PASS) {
@@ -97,7 +93,6 @@ app.post('/login', (req, res) => {
         res.send("Username သို့မဟုတ် Password မှားယွင်းနေပါသည်။");
     }
 });
-
 app.get('/logout', (req, res) => {
     req.session.destroy();
     res.redirect('/login');
@@ -106,19 +101,17 @@ app.get('/logout', (req, res) => {
 // --- MAIN DASHBOARD ---
 app.get('/', checkAuth, async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
-    const stats = await db.get('SELECT SUM(total_clearance) as total, SUM(weight) as weight FROM records WHERE date = ?', today);
-    const recentRecords = await db.all('SELECT * FROM records ORDER BY id DESC LIMIT 10');
-    
+    const stats = await pool.query('SELECT SUM(total_clearance) as total, SUM(weight) as weight FROM records WHERE date = $1', [today]);
+    const recent = await pool.query('SELECT * FROM records ORDER BY id DESC LIMIT 10');
     res.render('index', { 
-        todayTotal: stats.total || 0, 
-        todayWeight: stats.weight || 0,
-        records: recentRecords 
+        todayTotal: stats.rows[0].total || 0, 
+        todayWeight: stats.rows[0].weight || 0,
+        records: recent.rows 
     });
 });
 
-app.get('/add-record', checkAuth, (req, res) => {
-    res.render('add-record');
-});
+// --- ADD, EDIT, DELETE ---
+app.get('/add-record', checkAuth, (req, res) => res.render('add-record'));
 
 app.post('/add-record', checkAuth, async (req, res) => {
     const d = req.body;
@@ -128,18 +121,15 @@ app.post('/add-record', checkAuth, async (req, res) => {
     const truck_fee = parseFloat(d.truck_fee) || 0;
     const total_clearance = (weight * price) - broker_fee - truck_fee;
 
-    await db.run(`INSERT INTO records 
-        (date, farmer_name, item_name, item_type, truck_no, weight, price, broker_fee, truck_fee, total_clearance) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    await pool.query(`INSERT INTO records (date, farmer_name, item_name, item_type, truck_no, weight, price, broker_fee, truck_fee, total_clearance) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [d.date, d.farmer_name, d.item_name, d.item_type, d.truck_no, weight, price, broker_fee, truck_fee, total_clearance]
     );
     res.redirect('/');
 });
 
-// --- EDIT & DELETE ---
 app.get('/edit-record/:id', checkAuth, async (req, res) => {
-    const record = await db.get('SELECT * FROM records WHERE id = ?', req.params.id);
-    res.render('edit', { record });
+    const result = await pool.query('SELECT * FROM records WHERE id = $1', [req.params.id]);
+    res.render('edit', { record: result.rows[0] });
 });
 
 app.post('/update-record/:id', checkAuth, async (req, res) => {
@@ -150,87 +140,41 @@ app.post('/update-record/:id', checkAuth, async (req, res) => {
     const truck_fee = parseFloat(d.truck_fee) || 0;
     const total_clearance = (weight * price) - broker_fee - truck_fee;
 
-    await db.run(`UPDATE records SET 
-        date = ?, farmer_name = ?, item_name = ?, item_type = ?, 
-        truck_no = ?, weight = ?, price = ?, broker_fee = ?, 
-        truck_fee = ?, total_clearance = ? WHERE id = ?`,
+    await pool.query(`UPDATE records SET date=$1, farmer_name=$2, item_name=$3, item_type=$4, truck_no=$5, weight=$6, price=$7, broker_fee=$8, truck_fee=$9, total_clearance=$10 WHERE id=$11`,
         [d.date, d.farmer_name, d.item_name, d.item_type, d.truck_no, weight, price, broker_fee, truck_fee, total_clearance, req.params.id]
     );
     res.redirect('/');
 });
 
 app.post('/delete-record/:id', checkAuth, async (req, res) => {
-    await db.run('DELETE FROM records WHERE id = ?', req.params.id);
+    await pool.query('DELETE FROM records WHERE id = $1', [req.params.id]);
     res.redirect('/');
 });
 
-// --- REPORTS ---
+// --- REPORTS (Daily, Monthly, Yearly) ---
 app.get('/report/daily', checkAuth, async (req, res) => {
-    const today = new Date().toISOString().split('T')[0];
-    const dateFilter = req.query.date || today;
+    const dateFilter = req.query.date || new Date().toISOString().split('T')[0];
     const typeFilter = req.query.type || '';
-    const nameFilter = req.query.itemName || ''; 
-
-    let query = 'SELECT * FROM records WHERE date = ?';
-    let params = [dateFilter];
-
-    if (typeFilter) {
-        query += ' AND item_type LIKE ?';
-        params.push(`%${typeFilter}%`);
-    }
-    if (nameFilter) {
-        query += ' AND item_name LIKE ?';
-        params.push(`%${nameFilter}%`);
-    }
-
-    const records = await db.all(query, params);
-    res.render('reports/daily', { records, dateFilter, typeFilter, nameFilter });
+    const nameFilter = req.query.itemName || '';
+    const result = await pool.query(`SELECT * FROM records WHERE date = $1 AND item_type LIKE $2 AND item_name LIKE $3`, [dateFilter, `%${typeFilter}%`, `%${nameFilter}%`]);
+    res.render('reports/daily', { records: result.rows, dateFilter, typeFilter, nameFilter });
 });
 
 app.get('/report/monthly', checkAuth, async (req, res) => {
-    const currentMonth = new Date().toISOString().slice(0, 7); 
-    const monthFilter = req.query.month || currentMonth;
+    const monthFilter = req.query.month || new Date().toISOString().slice(0, 7);
     const typeFilter = req.query.type || '';
-    const nameFilter = req.query.itemName || ''; 
-
-    let query = 'SELECT * FROM records WHERE date LIKE ?';
-    let params = [`${monthFilter}%`];
-
-    if (typeFilter) {
-        query += ' AND item_type LIKE ?';
-        params.push(`%${typeFilter}%`);
-    }
-    if (nameFilter) {
-        query += ' AND item_name LIKE ?';
-        params.push(`%${nameFilter}%`);
-    }
-
-    const records = await db.all(query, params);
-    res.render('reports/monthly', { records, monthFilter, typeFilter, nameFilter });
+    const nameFilter = req.query.itemName || '';
+    const result = await pool.query(`SELECT * FROM records WHERE date LIKE $1 AND item_type LIKE $2 AND item_name LIKE $3`, [`${monthFilter}%`, `%${typeFilter}%`, `%${nameFilter}%`]);
+    res.render('reports/monthly', { records: result.rows, monthFilter, typeFilter, nameFilter });
 });
 
 app.get('/report/yearly', checkAuth, async (req, res) => {
-    const currentYear = new Date().getFullYear().toString();
-    const yearFilter = req.query.year || currentYear;
-    const typeFilter = req.query.type || ''; 
-    const nameFilter = req.query.itemName || ''; 
-
-    let query = 'SELECT * FROM records WHERE date LIKE ?';
-    let params = [`${yearFilter}%`];
-
-    if (typeFilter) {
-        query += ' AND item_type LIKE ?';
-        params.push(`%${typeFilter}%`);
-    }
-    if (nameFilter) {
-        query += ' AND item_name LIKE ?';
-        params.push(`%${nameFilter}%`);
-    }
-
-    const records = await db.all(query, params);
-    res.render('reports/yearly', { records, yearFilter, typeFilter, nameFilter }); 
+    const yearFilter = req.query.year || new Date().getFullYear().toString();
+    const typeFilter = req.query.type || '';
+    const nameFilter = req.query.itemName || '';
+    const result = await pool.query(`SELECT * FROM records WHERE date LIKE $1 AND item_type LIKE $2 AND item_name LIKE $3`, [`${yearFilter}%`, `%${typeFilter}%`, `%${nameFilter}%`]);
+    res.render('reports/yearly', { records: result.rows, yearFilter, typeFilter, nameFilter });
 });
 
-// Port ကို environment variable မှယူသုံးရန် ပြင်ဆင်ခြင်း
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server is running on http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

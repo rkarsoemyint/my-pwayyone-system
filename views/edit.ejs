@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <title>ပြင်ဆင်ရန်</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light p-5">
+    <div class="container card p-4 shadow-sm" style="max-width: 800px;">
+        <h4 class="mb-4">စာရင်းပြင်ဆင်ခြင်း</h4>
+        <form action="/update-record/<%= record.id %>" method="POST" class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">ရက်စွဲ</label>
+                <input type="date" name="date" class="form-control" value="<%= record.date %>" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">တောင်သူအမည်</label>
+                <input type="text" name="farmer_name" class="form-control" value="<%= record.farmer_name %>" required>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">အလေးချိန်</label>
+                <input type="number" step="0.01" name="weight" class="form-control" value="<%= record.weight %>" required>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">ဈေးနှုန်း</label>
+                <input type="number" name="price" class="form-control" value="<%= record.price %>" required>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">ကားခ (-)</label>
+                <input type="number" name="truck_fee" class="form-control" value="<%= record.truck_fee %>">
+            </div>
+            <div class="col-12 mt-4 d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Update လုပ်မည်</button>
+                <a href="/" class="btn btn-secondary">မလုပ်တော့ပါ</a>
+            </div>
+        </form>
+    </div>
+</body>
+</html>

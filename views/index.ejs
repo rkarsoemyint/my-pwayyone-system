@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard - Summary</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="d-flex">
+    <%- include('partials/sidebar') %>
+
+    <div class="main-content">
+        <h3>ယနေ့လုပ်ငန်းဆောင်တာ အနှစ်ချုပ်</h3>
+        <hr>
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card bg-primary text-white p-3">
+                    <h5>ယနေ့စုစုပေါင်း ရှင်းငွေ</h5>
+                    <h3><%= todayTotal %> ကျပ်</h3>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-success text-white p-3">
+                    <h5>ယနေ့ စုစုပေါင်း (ပိဿာ)</h5>
+                    <h3><%= todayWeight %></h3>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <h5>နောက်ဆုံးသွင်းထားသော စာရင်းများ</h5>
+            </div>
+    </div>
+</body>
+</html>

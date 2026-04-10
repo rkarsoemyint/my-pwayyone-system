@@ -1,11 +1,54 @@
-/* simple style for dashboard */
-body { font-family: sans-serif; background: #f0f2f5; padding: 20px; color: #333; }
-.stats-grid { display: flex; gap: 20px; margin-bottom: 20px; }
-.card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); flex: 1; text-align: center; }
-.card h3 { margin: 0; color: #666; font-size: 14px; }
-.card p { font-size: 24px; font-weight: bold; margin: 10px 0 0; color: #2563eb; }
-table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
-th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-th { background: #e2e8f0; }
-nav { margin-bottom: 20px; display: flex; gap: 10px; }
-.btn { padding: 8px 16px; text-decoration: none; background: #2563eb; color: white; border-radius: 4px; display: inline-block; }
+body { 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    background-color: #f8f9fa; /* Bootstrap နဲ့ လိုက်ဖက်တဲ့အရောင် */
+    margin: 0;
+    padding: 0; 
+    color: #333; 
+    display: flex; /* Sidebar နဲ့ Main Content ဘေးတိုက်ဖြစ်နေဖို့ */
+}
+
+/* Sidebar ပေါ်မူတည်ပြီး Main Content နေရာချခြင်း */
+.main-content {
+    flex-grow: 1;
+    padding: 30px;
+    margin-left: 250px; /* Sidebar ရဲ့ width နဲ့ အညီဖြစ်ရပါမယ် */
+    min-height: 100vh;
+}
+
+/* Dashboard ကတ်ပြားများ */
+.stats-grid { 
+    display: flex; 
+    gap: 20px; 
+    margin-bottom: 30px; 
+}
+
+.card { 
+    background: white; 
+    padding: 20px; 
+    border-radius: 10px; 
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+    flex: 1; 
+    border: none; /* Bootstrap card border ကို ဖျောက်ချင်ရင် */
+}
+
+/* ဇယား (Table) ပုံစံညှိခြင်း */
+.table-container {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+/* Mobile Responsive ဖြစ်စေရန် */
+@media (max-width: 768px) {
+    body {
+        flex-direction: column; /* ဖုန်းမှာဆိုရင် Sidebar ကို အပေါ်ပို့မယ် */
+    }
+    .main-content {
+        margin-left: 0;
+        padding: 15px;
+    }
+    .stats-grid {
+        flex-direction: column; /* ကတ်တွေကို တစ်ခုချင်း စီလိုက်မယ် */
+    }
+}
